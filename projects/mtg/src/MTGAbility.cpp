@@ -384,6 +384,23 @@ int AbilityFactory::parseCastRestrictions(MTGCardInstance * card, Player * playe
                 return 0;
         }
         
+        //Ensnaring Bridge
+        check = restriction[i].find("powermorethanopponenthand");
+        if (check != string::npos)//for opponent creatures
+        {
+            Player * checkCurrent = card->controller();
+            if(card->power <= checkCurrent->opponent()->game->hand->nb_cards)
+                return 0;
+        }
+
+        check = restriction[i].find("powermorethancontrollerhand");
+        if (check != string::npos)//for controller creatures
+        {
+            Player * checkCurrent = card->controller();
+            if(card->power <= checkCurrent->game->hand->nb_cards)
+                return 0;
+        }
+        //end
 
         check = restriction[i].find("morecardsthanopponent");
         if (check != string::npos)
@@ -519,6 +536,21 @@ int AbilityFactory::parseCastRestrictions(MTGCardInstance * card, Player * playe
             if(!card->discarded)
                 return 0;
         }
+        
+        check = restriction[i].find("cardistargeted");
+        if(check != string::npos)
+        {
+            bool istarget = card->isTargetted();
+            if(!istarget)
+                return 0;
+        }
+
+        check = restriction[i].find("copiedacard");
+        if(check != string::npos)
+        {
+            if(!card->isACopier)
+                return 0;
+        }
 
         check = restriction[i].find("geared");
         if (check != string::npos)
@@ -549,6 +581,22 @@ int AbilityFactory::parseCastRestrictions(MTGCardInstance * card, Player * playe
                 return 0;
         }
 
+        check = restriction[i].find("lessorequalcreatures");
+        if(check != string::npos)
+        {
+            bool condition = (card->controller()->opponent()->inPlay()->countByType("creature") >= card->controller()->inPlay()->countByType("creature"));
+            if(!condition)
+                return 0;
+        }
+
+        check = restriction[i].find("lessorequallands");
+        if(check != string::npos)
+        {
+            bool condition = (card->controller()->opponent()->inPlay()->countByType("land") >= card->controller()->inPlay()->countByType("land"));
+            if(!condition)
+                return 0;
+        }
+
         check = restriction[i].find("outnumbered");//opponent controls atleast 4 or more creatures than you
         if(check != string::npos)
         {
@@ -561,6 +609,13 @@ int AbilityFactory::parseCastRestrictions(MTGCardInstance * card, Player * playe
         if(check != string::npos)
         {
             if(!card->has(Constants::DEFENDER))
+                return 0;
+        }
+
+        check = restriction[i].find("didblock");
+        if(check != string::npos)
+        {
+            if(!card->didblocked)
                 return 0;
         }
 
@@ -654,6 +709,21 @@ int AbilityFactory::parseCastRestrictions(MTGCardInstance * card, Player * playe
         if(check != string::npos)
         {
             restriction.push_back("type(creature|mybattlefield)~lessthan~type(creature|opponentbattlefield)");
+        }
+        check = restriction[i].find("control less lands");
+        if(check != string::npos)
+        {
+            restriction.push_back("type(land|mybattlefield)~lessthan~type(land|opponentbattlefield)");
+        }
+        check = restriction[i].find("control more creatures");
+        if(check != string::npos)
+        {
+            restriction.push_back("type(creature|mybattlefield)~morethan~type(creature|opponentbattlefield)");
+        }
+        check = restriction[i].find("control more lands");
+        if(check != string::npos)
+        {
+            restriction.push_back("type(land|mybattlefield)~morethan~type(land|opponentbattlefield)");
         }
 
         check = restriction[i].find("paid(");
@@ -1393,13 +1463,7 @@ MTGAbility * AbilityFactory::parseMagicLine(string s, int id, Spell * spell, MTG
     found = s.find("legendrule");
     if(found != string::npos)
     {
-        //I replaced this rule since it broke cards with copy effects and with andability and other
-        //complex cards. So I moved it to gameobserver state based effects, if there are no more
-        //abilities that needs resolving then trigger this legend check... example bug:
-        //cast Phantasmal Image, then copy Vendilion Clique in play, after you choose target player
-        //there will be infinite menu for legendary rule that conflicts with Phantasmal andAbility
-        //observer->addObserver(NEW MTGLegendRule(observer, -1));
-        observer->foundlegendrule = true;
+        observer->addObserver(NEW MTGLegendRule(observer, -1));
         return NULL;
     }
     //this handles the planeswalker named legend rule which is dramatically different from above.
@@ -2763,6 +2827,7 @@ MTGAbility * AbilityFactory::parseMagicLine(string s, int id, Spell * spell, MTG
         MTGAbility * a = NEW AACopier(observer, id, card, target);
         a->oneShot = 1;
         a->canBeInterrupted = false;
+        ((AACopier*)a)->isactivated = activated;
         //andability
         if(storedAndAbility.size())
         {
@@ -5371,7 +5436,7 @@ int ActivatedAbility::isReactingToClick(MTGCardInstance * card, ManaCost * mana)
     case OPPONENT_TURN_ONLY:
         if (player == game->currentPlayer)
             return 0;
-            break;
+        break;
     case AS_SORCERY:
         if (player != game->currentPlayer)
             return 0;
@@ -5543,7 +5608,7 @@ int ActivatedAbility::activateAbility()
             ExtraCost * tapper = dynamic_cast<TapCost*>(cost->extraCosts->costs[i]);
             if(tapper)
                 needsTapping = 1;
-                wasTappedForMana = true;
+            wasTappedForMana = true;
         }
     }
     else if(amp||femp)

@@ -8,6 +8,9 @@
 #include "Rules.h"
 #include "GameObserver.h"
 #include "GameStateShop.h"
+#ifdef QT_CONFIG
+#include <QThread>
+#endif
 
 using std::string;
 
@@ -852,7 +855,7 @@ void TestSuiteGame::initGame()
         p->life = initState.players[i]->life;
         p->poisonCount = initState.players[i]->poisonCount;
         stringstream stream;
-        stream << initState.players[i]->getRandomGenerator()->saveLoadedRandValues(stream);
+        initState.players[i]->getRandomGenerator()->saveLoadedRandValues(stream);
         p->getRandomGenerator()->loadRandValues(stream.str());
         MTGGameZone * playerZones[] = { p->game->graveyard, p->game->library, p->game->hand, p->game->inPlay, p->game->removedFromGame };
         MTGGameZone * loadedPlayerZones[] = { initState.players[i]->game->graveyard,

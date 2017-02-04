@@ -781,53 +781,53 @@ private:
         }
         else if (s == "olandg")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_GREEN, target->controller()->opponent());
+            intValue = countManaProducedby(Constants::MTG_COLOR_GREEN, target, target->controller()->opponent());
         }
         else if (s == "olandu")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_BLUE, target->controller()->opponent());
+            intValue = countManaProducedby(Constants::MTG_COLOR_BLUE, target, target->controller()->opponent());
         }
         else if (s == "olandr")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_RED, target->controller()->opponent());
+            intValue = countManaProducedby(Constants::MTG_COLOR_RED, target, target->controller()->opponent());
         }
         else if (s == "olandb")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_BLACK, target->controller()->opponent());
+            intValue = countManaProducedby(Constants::MTG_COLOR_BLACK, target, target->controller()->opponent());
         }
         else if (s == "olandw")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_WHITE, target->controller()->opponent());
+            intValue = countManaProducedby(Constants::MTG_COLOR_WHITE, target, target->controller()->opponent());
         }
         else if (s == "olandc")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_ARTIFACT, target->controller()->opponent()) +
-                countManaProducedby(Constants::MTG_COLOR_WASTE, target->controller()->opponent());
+            intValue = countManaProducedby(Constants::MTG_COLOR_ARTIFACT, target, target->controller()->opponent()) +
+                countManaProducedby(Constants::MTG_COLOR_WASTE, target, target->controller()->opponent());
         }
         else if (s == "plandg")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_GREEN, target->controller());
+            intValue = countManaProducedby(Constants::MTG_COLOR_GREEN, target, target->controller());
         }
         else if (s == "plandu")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_BLUE, target->controller());
+            intValue = countManaProducedby(Constants::MTG_COLOR_BLUE, target, target->controller());
         }
         else if (s == "plandr")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_RED, target->controller());
+            intValue = countManaProducedby(Constants::MTG_COLOR_RED, target, target->controller());
         }
         else if (s == "plandb")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_BLACK, target->controller());
+            intValue = countManaProducedby(Constants::MTG_COLOR_BLACK, target, target->controller());
         }
         else if (s == "plandw")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_WHITE, target->controller());
+            intValue = countManaProducedby(Constants::MTG_COLOR_WHITE, target, target->controller());
         }
         else if (s == "plandc")
         {
-            intValue = countManaProducedby(Constants::MTG_COLOR_ARTIFACT, target->controller()) +
-                countManaProducedby(Constants::MTG_COLOR_WASTE, target->controller());
+            intValue = countManaProducedby(Constants::MTG_COLOR_ARTIFACT, target, target->controller()) +
+                countManaProducedby(Constants::MTG_COLOR_WASTE, target, target->controller());
         }
         else if (s == "cantargetmycre")// can target my creature
         {
@@ -874,6 +874,16 @@ private:
                 intValue = card->controller()->life;
             else
                 intValue = 0;
+        }
+        else if (s == "crewtotalpower")//crew count total power
+        {
+            intValue = 0;
+            for (int j = card->controller()->game->battlefield->nb_cards - 1; j >= 0; --j)
+            {
+                MTGCardInstance * crew = card->controller()->game->battlefield->cards[j];
+                if (crew != card && crew->isCreature() && !crew->isTapped() && !crew->isPhased && !crew->has(Constants::CANTCREW))
+                    intValue += crew->power;
+            }
         }
         else if (s == "pancientooze")//Ancient Ooze
         {
@@ -1112,7 +1122,7 @@ public:
         return count;
     }
 
-    /*int countManaProducedby(int color, MTGCardInstance * target, Player * player)
+    int countManaProducedby(int color, MTGCardInstance * target, Player * player)
     {
         int count = 0;
         for (size_t i = 0; i < target->getObserver()->mLayers->actionLayer()->manaObjects.size(); i++)
@@ -1123,27 +1133,6 @@ public:
                     (dynamic_cast<AManaProducer*> (((MTGAbility *) target->getObserver()->mLayers->actionLayer()->manaObjects[i])))->output->hasColor(color))
                     count += 1;
             }
-        return count;
-    }*/
-
-    int countManaProducedby(int color, Player * player)
-    {
-        int count = 0;
-        for (int i = 0; i < player->game->battlefield->nb_cards; i++)
-        {
-            if(((MTGCardInstance *)player->game->battlefield->cards[i])->isLand() && ((MTGCardInstance *)player->game->battlefield->cards[i])->canproduceC && (color == Constants::MTG_COLOR_ARTIFACT || color == Constants::MTG_COLOR_WASTE))
-                count += 1;
-            if(((MTGCardInstance *)player->game->battlefield->cards[i])->isLand() && ((MTGCardInstance *)player->game->battlefield->cards[i])->canproduceG && color == Constants::MTG_COLOR_GREEN)
-                count += 1;
-            if(((MTGCardInstance *)player->game->battlefield->cards[i])->isLand() && ((MTGCardInstance *)player->game->battlefield->cards[i])->canproduceU && color == Constants::MTG_COLOR_BLUE)
-                count += 1;
-            if(((MTGCardInstance *)player->game->battlefield->cards[i])->isLand() && ((MTGCardInstance *)player->game->battlefield->cards[i])->canproduceR && color == Constants::MTG_COLOR_RED)
-                count += 1;
-            if(((MTGCardInstance *)player->game->battlefield->cards[i])->isLand() && ((MTGCardInstance *)player->game->battlefield->cards[i])->canproduceB && color == Constants::MTG_COLOR_BLACK)
-                count += 1;
-            if(((MTGCardInstance *)player->game->battlefield->cards[i])->isLand() && ((MTGCardInstance *)player->game->battlefield->cards[i])->canproduceW && color == Constants::MTG_COLOR_WHITE)
-                count += 1;
-        }
         return count;
     }
 
@@ -2055,6 +2044,7 @@ public:
 class AACopier: public ActivatedAbility
 {
 public:
+    bool isactivated;
     vector<MTGAbility *> currentAbilities;
     MTGAbility * andAbility;
     AACopier(GameObserver* observer, int _id, MTGCardInstance * _source, MTGCardInstance * _target = NULL, ManaCost * _cost = NULL);
@@ -3858,6 +3848,7 @@ public:
             spell->source->isToken = 1;
             spell->source->fresh = 1;
             spell->source->entersBattlefield = 1;
+            spell->source->tokCard = spell->source->clone();
             if(spell->source->getMTGId() == 0)
             {//fix missing art: if token creator is put inside ability$!!$ who, then try to get the stored source card
                 if(((MTGCardInstance*)source)->storedSourceCard)
@@ -6636,7 +6627,7 @@ public:
                 else
                     source->removeptbonus(PowerModifier * (nbOpponents - MaxOpponent),ToughnessModifier * (nbOpponents - MaxOpponent));
 
-                    nbOpponents = 0;
+                nbOpponents = 0;
             }
         }
         return 1;
@@ -6659,8 +6650,8 @@ public:
         int receiveEvent(WEvent * event)
         {
             WEventZoneChange * enters = dynamic_cast<WEventZoneChange *> (event);
-            if (enters && enters->to == enters->card->controller()->game->inPlay)
-                if(enters->from != enters->card->controller()->game->inPlay && enters->from != enters->card->controller()->opponent()->game->inPlay) //cards changing from inplay to inplay don't re-enter battlefield
+            if (enters && enters->to == enters->card->controller()->game->inPlay) {
+                if(enters->from != enters->card->controller()->game->inPlay && enters->from != enters->card->controller()->opponent()->game->inPlay) { //cards changing from inplay to inplay don't re-enter battlefield
                     if(enters->card->controller() == source->controller() && enters->card->isCreature())
                     {
                         if(enters->card != source && (enters->card->power > source->power || enters->card->toughness > source->toughness))
@@ -6668,7 +6659,9 @@ public:
                             source->counters->addCounter(1,1);
                         }
                     }
-                    return 1;
+                }
+            }
+            return 1;
         }
 
     AEvolveAbility * clone() const

@@ -423,14 +423,17 @@ public:
 };
 
 /*
- * Rule 420.5e (Legend Rule)
- * If two or more legendary permanents with the same name are in play, all are put into their
- * owners' graveyards. This is called the "legend rule." If only one of those permanents is
- * legendary, this rule doesn't apply.
+ * 704.5k If a player controls two or more legendary permanents with the same name, 
+ * that player chooses one of them, and the rest are put into their owners’ graveyards. 
+ * This is called the “legend rule.” 
  */
 class MTGLegendRule: public ListMaintainerAbility
 {
 public:
+    TargetChooser * tcL;
+    MTGAbility * Legendrule;
+    MTGAbility * LegendruleAbility;
+    MTGAbility * LegendruleGeneric;
     MTGLegendRule(GameObserver* observer, int _id);
     int canBeInList(MTGCardInstance * card);
     int added(MTGCardInstance * card);
@@ -442,6 +445,10 @@ public:
 class MTGPlaneWalkerRule: public ListMaintainerAbility
 {
 public:
+    TargetChooser * tcP;
+    MTGAbility * PWrule;
+    MTGAbility * PWruleAbility;
+    MTGAbility * PWruleGeneric;
     MTGPlaneWalkerRule(GameObserver* observer, int _id);
     int canBeInList(MTGCardInstance * card);
     int added(MTGCardInstance * card);

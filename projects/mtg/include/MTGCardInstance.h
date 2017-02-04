@@ -48,6 +48,7 @@ public:
     vector<MTGCardInstance*>parentCards;
     vector<MTGCardInstance*>childrenCards;
     vector<MTGAbility *>cardsAbilities;
+    //vector<MTGAbility *>cardsAbilitiesFilter;
 
     int setAttacker(int value);
     int setDefenser(MTGCardInstance * c);
@@ -120,9 +121,11 @@ public:
     Player * previousController;
     MTGGameZone * getCurrentZone();
     MTGGameZone * previousZone;
+    MTGCardInstance * tokCard;
     MTGCardInstance * previous;
     MTGCardInstance * next;
     MTGAbility * TokenAndAbility;
+    MTGAbility * GrantedAndAbility;
     int doDamageTest;
     bool skipDamageTestOnce;
     int summoningSickness;
@@ -249,6 +252,7 @@ public:
     int getCurrentToughness();
     int LKIpower;
     int LKItoughness;
+    int countDuplicateCardNames();
     void cdaPT(int p = 0, int t = 0);
     bool isCDA;
     void switchPT(bool apply = false);

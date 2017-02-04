@@ -1539,58 +1539,48 @@ AACopier::AACopier(GameObserver* observer, int _id, MTGCardInstance * _source, M
 {
     target = _target;
     andAbility = NULL;
+    isactivated = false;
 }
 
 int AACopier::resolve()
 {
-    bool tokencopied = false;
-    AbilityFactory af(game);
     MTGCardInstance * _target = (MTGCardInstance *) target;
     if (_target)
     {
+        bool tokencopied = false;
         if(_target->isToken || (_target->isACopier && _target->hasCopiedToken))
             tokencopied = true;
-
-        if(tokencopied && !_target->isACopier)
-            source->copy(_target->clone());
+        /*this solves one thing.. if you copy a nontoken card with dragon breath attached that gives haste*/
+        source->hasCopiedToken = tokencopied;
+        /*since we look for the real card it will not copy granted haste ability however for token we copy all*/
+        /*but how to do backup for token so we just copy the backup???*/
+        if(tokencopied && !_target->isACopier && !_target->getMTGId())
+        {
+            source->copy(_target->tokCard);
+            //if the token doesn't have cda/dynamic pt then allow this...
+            if(!_target->isCDA)
+            {
+                if(_target->pbonus > 0)
+                    source->power = _target->power - _target->pbonus;
+                else
+                    source->power = _target->power + abs(_target->pbonus);
+                if(_target->tbonus > 0)
+                {
+                    source->toughness = _target->toughness - _target->tbonus;
+                    source->life = _target->toughness - _target->tbonus;
+                }
+                else
+                {
+                    source->toughness = _target->toughness + abs(_target->tbonus);
+                    source->life = _target->toughness + abs(_target->tbonus);
+                }
+            }
+        }
         else
         {
             source->copy(_target);
         }
-        //abilities
-        for(unsigned int i = 0;i < source->cardsAbilities.size();i++)
-        {
-            MTGAbility * a = dynamic_cast<MTGAbility *>(source->cardsAbilities[i]);
-
-            if(a) game->removeObserver(a);
-        }
-        source->cardsAbilities.clear();
-        af.getAbilities(&currentAbilities, NULL, source);
-        for (size_t i = 0; i < currentAbilities.size(); ++i)
-        {
-            MTGAbility * a = currentAbilities[i];
-            a->source = (MTGCardInstance *) source;
-            if (a)
-            {
-                if (a->oneShot)
-                {
-                    a->resolve();
-                    SAFE_DELETE(a);
-                }
-                else
-                {
-                    a->addToGame();
-                    MayAbility * dontAdd = dynamic_cast<MayAbility*>(a);
-                    if(!dontAdd)
-                    {
-                        source->cardsAbilities.push_back(a);
-                    }
-                }
-            }
-        }
-        //
         source->isACopier = true;
-        source->hasCopiedToken = tokencopied;
         source->copiedID = _target->copiedID;
         if(_target->isMorphed)
         {
@@ -1606,7 +1596,7 @@ int AACopier::resolve()
             source->getManaCost()->resetCosts();
         }
         if(_target->TokenAndAbility)
-        {//the source copied a token with andAbility
+        {//the source copied a token with tokenandAbility
             MTGAbility * TokenandAbilityClone = _target->TokenAndAbility->clone();
             TokenandAbilityClone->target = source;
             if(_target->TokenAndAbility->oneShot)
@@ -1619,21 +1609,58 @@ int AACopier::resolve()
                 TokenandAbilityClone->addToGame();
             }
         }
-        if(andAbility)
+        if(source)
         {
-            MTGAbility * andAbilityClone = andAbility->clone();
-            andAbilityClone->target = source;
-            if(andAbility->oneShot)
+            source->GrantedAndAbility = andAbility;
+            AbilityFactory af(game);
+            for(unsigned int i = 0;i < source->cardsAbilities.size();i++)
             {
-                andAbilityClone->resolve();
-                SAFE_DELETE(andAbilityClone);
+                MTGAbility * a = dynamic_cast<MTGAbility *>(source->cardsAbilities[i]);
+
+                if(a) game->removeObserver(a);
             }
-            else
+            source->cardsAbilities.clear();
+            source->magicText = _target->magicText;
+
+            af.getAbilities(&currentAbilities, NULL, source);
+            for (size_t i = 0; i < currentAbilities.size(); ++i)
             {
-                andAbilityClone->addToGame();
+                MTGAbility * a = currentAbilities[i];
+                a->source = (MTGCardInstance *) source;
+                if (a)
+                {
+                    if (a->oneShot)
+                    {
+                        if(a->source->entersBattlefield)
+                            a->resolve();
+                        SAFE_DELETE(a);
+                    }
+                    else
+                    {
+                        a->addToGame();
+                        MayAbility * dontAdd = dynamic_cast<MayAbility*>(a);
+                        if(!dontAdd)
+                        {
+                            source->cardsAbilities.push_back(a);
+                        }
+                    }
+                }
+            }
+            if(source->GrantedAndAbility)
+            {
+                MTGAbility * andAbilityClone = source->GrantedAndAbility->clone();
+                andAbilityClone->target = source;
+                if(andAbility->oneShot)
+                {
+                    andAbilityClone->resolve();
+                    SAFE_DELETE(andAbilityClone);
+                }
+                else
+                {
+                    andAbilityClone->addToGame();
+                }
             }
         }
-        //source->mPropertiesChangedSinceLastUpdate = true;
         return 1;
     }
     return 0;
@@ -3322,6 +3349,7 @@ InstantAbility(observer, id, card, _target),flipStats(flipStats),isflipcard(isfl
 int AAFlip::resolve()
 {
     int cdaDamage = 0;
+    int activatedanyability = 0;
     MTGCardInstance * Flipper = (MTGCardInstance*)source;
     this->oneShot = true;
     if(Flipper->isFlipped)
@@ -3372,6 +3400,17 @@ int AAFlip::resolve()
                 _target->setMTGId(myFlip->getMTGId());
                 _target->setId = myFlip->setId;
             }
+            //check pw
+            if(_target->hasType(Subtypes::TYPE_PLANESWALKER))
+            {
+                for(unsigned int k = 0;k < _target->cardsAbilities.size();++k)
+                {
+                    ActivatedAbility * check = dynamic_cast<ActivatedAbility*>(_target->cardsAbilities[k]);
+                    if(check && check->counters)
+                        activatedanyability++;
+                }
+            }
+            //
             for(unsigned int i = 0;i < _target->cardsAbilities.size();i++)
             {
                 MTGAbility * a = dynamic_cast<MTGAbility *>(_target->cardsAbilities[i]);
@@ -3400,6 +3439,19 @@ int AAFlip::resolve()
                         {
                             _target->cardsAbilities.push_back(a);
                         }
+                    }
+                }
+            }
+            //limit pw abi
+            if(activatedanyability)
+            {
+                if(_target->hasType(Subtypes::TYPE_PLANESWALKER))
+                {
+                    for(unsigned int k = 0;k < _target->cardsAbilities.size();++k)
+                    {
+                        ActivatedAbility * check = dynamic_cast<ActivatedAbility*>(_target->cardsAbilities[k]);
+                        if(check)//is there a better way?
+                            check->counters++;
                     }
                 }
             }
@@ -4052,12 +4104,23 @@ int AACloner::resolve()
     if (!_target)
         return 0;
 
-    // Use id of the card to have the same image as the original
-    MTGCard* clone = (_target->isToken ? _target: MTGCollection()->getCardById(_target->getId()));
+    MTGCard * clone = NULL;
 
-    // If its a copier and copied a token then copy what it is
-    if(_target->isACopier && _target->hasCopiedToken)
-        clone = _target;
+    if(_target->isToken || _target->hasCopiedToken)
+    {
+        if(_target->getMTGId() > 0)//not generated token
+            clone = MTGCollection()->getCardById(_target->getMTGId());
+        else
+        {
+            clone = _target->tokCard;
+            clone->data = _target->tokCard;//?wtf
+        }
+    }
+    else
+         clone = MTGCollection()->getCardById(_target->copiedID);
+
+    if(!clone)
+        source = _target;
 
     Player * targetPlayer = who == 1 ? source->controller()->opponent() : source->controller();
 
@@ -4084,6 +4147,8 @@ int AACloner::resolve()
         spell->source->entersBattlefield = 1;
         spell->source->model = spell->source;
         spell->source->model->data = spell->source;
+        spell->source->tokCard = spell->source->clone();
+        spell->source->TokenAndAbility = _target->TokenAndAbility;//token andAbility
         //if the token doesn't have cda/dynamic pt then allow this...
         if((_target->isToken) && (!_target->isCDA))
         {
@@ -4115,11 +4180,11 @@ int AACloner::resolve()
         {
             spell->source->addType(*it);
         }
-        if(_target->TokenAndAbility)
+        if(spell->source->TokenAndAbility)
         {//the source copied a token with andAbility
-            MTGAbility * TokenandAbilityClone = _target->TokenAndAbility->clone();
+            MTGAbility * TokenandAbilityClone = spell->source->TokenAndAbility->clone();
             TokenandAbilityClone->target = spell->source;
-            if(_target->TokenAndAbility->oneShot)
+            if(spell->source->TokenAndAbility->oneShot)
             {
                 TokenandAbilityClone->resolve();
                 SAFE_DELETE(TokenandAbilityClone);
@@ -7974,78 +8039,78 @@ int AACastCard::resolveSpell()
         if (_target->isLand())
             putinplay = true;
 
-            Spell * spell = NULL;
-            MTGCardInstance * copy = NULL;
-            if ((normal || asNormalMadness)||(!_target->hasType(Subtypes::TYPE_INSTANT) && !_target->hasType(Subtypes::TYPE_SORCERY)))
+        Spell * spell = NULL;
+        MTGCardInstance * copy = NULL;
+        if ((normal || asNormalMadness)||(!_target->hasType(Subtypes::TYPE_INSTANT) && !_target->hasType(Subtypes::TYPE_SORCERY)))
+        {
+            if (putinplay && (_target->hasType(Subtypes::TYPE_ARTIFACT)||_target->hasType(Subtypes::TYPE_CREATURE)||_target->hasType(Subtypes::TYPE_ENCHANTMENT)||_target->hasType(Subtypes::TYPE_PLANESWALKER)))
+                copy =_target->controller()->game->putInZone(_target, _target->currentZone, source->controller()->game->battlefield,noEvent);
+            else
+               copy =_target->controller()->game->putInZone(_target, _target->currentZone, _target->controller()->game->stack,noEvent);
+            copy->changeController(source->controller(),true);
+            if(asNormalMadness)
+            copy->MadnessPlay = true;
+        }
+        else
+        {
+            if (putinplay && (_target->hasType(Subtypes::TYPE_ARTIFACT)||_target->hasType(Subtypes::TYPE_CREATURE)||_target->hasType(Subtypes::TYPE_ENCHANTMENT)||_target->hasType(Subtypes::TYPE_PLANESWALKER)))
+                copy =_target->controller()->game->putInZone(_target, _target->currentZone, source->controller()->game->battlefield,noEvent);
+            else
+                copy =_target->controller()->game->putInZone(_target, _target->currentZone, _target->controller()->game->stack,noEvent);
+            copy->changeController(source->controller(),true);
+        }
+        if (game->targetChooser)
+        {
+            game->targetChooser->Owner = source->controller();
+            if(putinplay)
             {
-                if (putinplay && (_target->hasType(Subtypes::TYPE_ARTIFACT)||_target->hasType(Subtypes::TYPE_CREATURE)||_target->hasType(Subtypes::TYPE_ENCHANTMENT)||_target->hasType(Subtypes::TYPE_PLANESWALKER)))
-                    copy =_target->controller()->game->putInZone(_target, _target->currentZone, source->controller()->game->battlefield,noEvent);
-                else
-                    copy =_target->controller()->game->putInZone(_target, _target->currentZone, source->controller()->game->stack,noEvent);
-                copy->changeController(source->controller(),true);
-                if(asNormalMadness)
-                copy->MadnessPlay = true;
+                spell =  NEW Spell(game, 0,copy,game->targetChooser,NULL, 1);
+                spell->resolve();
+            }
+            else
+                spell = game->mLayers->stackLayer()->addSpell(copy, game->targetChooser, NULL, 1, 0);
+            game->targetChooser = NULL;
+        }
+        else
+        {
+            if(putinplay)
+            {
+                spell =  NEW Spell(game, 0,copy,NULL,NULL, 1);
+                spell->resolve();
+            }
+            else
+                spell = game->mLayers->stackLayer()->addSpell(copy, NULL, NULL, 1, 0);
+        }
+
+        if (copy->has(Constants::STORM))
+        {
+            int storm = _target->controller()->game->stack->seenThisTurn("*", Constants::CAST_ALL) + source->controller()->opponent()->game->stack->seenThisTurn("*", Constants::CAST_ALL);
+            
+            for (int i = storm; i > 1; i--)
+            {
+                spell = game->mLayers->stackLayer()->addSpell(copy, NULL, 0, 1, 1);
+
+            }
+        }
+        if (!copy->has(Constants::STORM))
+        {
+            copy->X = _target->X;
+            copy->castX = copy->X;
+        }
+        if(andAbility)
+        {
+            MTGAbility * andAbilityClone = andAbility->clone();
+            andAbilityClone->target = copy;
+            if(andAbility->oneShot)
+            {
+                andAbilityClone->resolve();
+                SAFE_DELETE(andAbilityClone);
             }
             else
             {
-                if (putinplay && (_target->hasType(Subtypes::TYPE_ARTIFACT)||_target->hasType(Subtypes::TYPE_CREATURE)||_target->hasType(Subtypes::TYPE_ENCHANTMENT)||_target->hasType(Subtypes::TYPE_PLANESWALKER)))
-                    copy =_target->controller()->game->putInZone(_target, _target->currentZone, source->controller()->game->battlefield,noEvent);
-                else
-                    copy =_target->controller()->game->putInZone(_target, _target->currentZone, _target->controller()->game->stack,noEvent);
-                copy->changeController(source->controller(),true);
+                andAbilityClone->addToGame();
             }
-            if (game->targetChooser)
-            {
-                game->targetChooser->Owner = source->controller();
-                if(putinplay)
-                {
-                    spell =  NEW Spell(game, 0,copy,game->targetChooser,NULL, 1);
-                    spell->resolve();
-                }
-                else
-                    spell = game->mLayers->stackLayer()->addSpell(copy, game->targetChooser, NULL, 1, 0);
-                game->targetChooser = NULL;
-            }
-            else
-            {
-                if(putinplay)
-                {
-                    spell =  NEW Spell(game, 0,copy,NULL,NULL, 1);
-                    spell->resolve();
-                }
-                else
-                    spell = game->mLayers->stackLayer()->addSpell(copy, NULL, NULL, 1, 0);
-            }
-
-            if (copy->has(Constants::STORM))
-            {
-                int storm = _target->controller()->game->stack->seenThisTurn("*", Constants::CAST_ALL) + source->controller()->opponent()->game->stack->seenThisTurn("*", Constants::CAST_ALL);
-                
-                for (int i = storm; i > 1; i--)
-                {
-                    spell = game->mLayers->stackLayer()->addSpell(copy, NULL, 0, 1, 1);
-
-                }
-            }
-            if (!copy->has(Constants::STORM))
-            {
-                copy->X = _target->X;
-                copy->castX = copy->X;
-            }
-            if(andAbility)
-            {
-                MTGAbility * andAbilityClone = andAbility->clone();
-                andAbilityClone->target = copy;
-                if(andAbility->oneShot)
-                {
-                    andAbilityClone->resolve();
-                    SAFE_DELETE(andAbilityClone);
-                }
-                else
-                {
-                    andAbilityClone->addToGame();
-                }
-            }
+        }
 
         this->forceDestroy = true;
         processed = true;

@@ -99,10 +99,19 @@ void MTGCardInstance::copy(MTGCardInstance * card)
     MTGCard * source = NULL;
     if(card->isToken || card->hasCopiedToken)
     {
-        source = card;
+        if(card->getMTGId() > 0)//not generated token
+            source = MTGCollection()->getCardById(card->getMTGId());
+        else
+        {
+            source = card->tokCard;
+            source->data = card->tokCard;//?wtf
+        }
     }
     else
          source = MTGCollection()->getCardById(card->copiedID);
+
+    if(!source)
+        source = card;
 
     CardPrimitive * data = source->data;
     basicAbilities = data->basicAbilities;
@@ -131,19 +140,28 @@ void MTGCardInstance::copy(MTGCardInstance * card)
     copiedID = card->copiedID;
     doubleFaced = data->doubleFaced;
     AICustomCode = data->AICustomCode;
+    CrewAbility = data->CrewAbility;
     origpower = card->origpower;//for flip
     origtoughness = card->origtoughness;//for flip
+    TokenAndAbility = card->TokenAndAbility;//token andAbility
+    tokCard = card->tokCard;
 
     //Now this is dirty...
     int backupid = mtgid;
     int castMethodBackUP = this->castMethod;
     mtgid = source->getId();
     MTGCardInstance * oldStored = this->storedSourceCard;
-    /*Spell * spell = NEW Spell(observer, this);
-    observer = card->observer;
-    AbilityFactory af(observer);
-    af.addAbilities(observer->mLayers->actionLayer()->getMaxId(), spell);
-    delete spell;*/
+    //test copy filtered
+    /*cardsAbilitiesFilter.clear();
+    for(unsigned int i = 0;i < card->cardsAbilities.size();i++)
+    {
+        MTGAbility * a = dynamic_cast<MTGAbility *>(card->cardsAbilities[i]);
+        if(a && a->source == card) 
+        {
+            cardsAbilitiesFilter.push_back(a);
+        }
+    }*/
+
     if(observer->players[1]->playMode == Player::MODE_TEST_SUITE)
         mtgid = backupid; // there must be a way to get the token id...
     else
@@ -151,14 +169,11 @@ void MTGCardInstance::copy(MTGCardInstance * card)
         mtgid = card->getMTGId();   ///////////////////////////////////////////////////
         setId = card->setId;        // Copier/Cloner cards produces the same token...//
         rarity = card->getRarity(); ///////////////////////////////////////////////////
-
-        setMTGId(card->copiedID);   //**************sets copier image****************//
     }
     castMethod = castMethodBackUP;
     backupTargets = this->backupTargets;
     storedCard = oldStored;
     miracle = false;
-    mPropertiesChangedSinceLastUpdate = true;
 }
 
 MTGCardInstance::~MTGCardInstance()
@@ -283,9 +298,11 @@ void MTGCardInstance::initMTGCI()
     owner = NULL;
     counters = NEW Counters(this);
     previousZone = NULL;
+    tokCard = NULL;
     previous = NULL;
     next = NULL;
     TokenAndAbility = NULL;
+    GrantedAndAbility = NULL;
     lastController = NULL;
     regenerateTokens = 0;
     blocked = false;
@@ -293,6 +310,7 @@ void MTGCardInstance::initMTGCI()
     exileEffects = false;
     currentZone = NULL;
     cardsAbilities = vector<MTGAbility *>();
+    //cardsAbilitiesFilter = vector<MTGAbility *>();
     data = this; //an MTGCardInstance point to itself for data, allows to update it without killing the underlying database item
 
     if (observer && basicAbilities[(int)Constants::CHANGELING])
@@ -823,6 +841,22 @@ int MTGCardInstance::getCurrentToughness()
     if(observer && !isInPlay(observer))
         return LKItoughness;
     return toughness;
+}
+
+int MTGCardInstance::countDuplicateCardNames()
+{
+    int count = 0;
+
+    if(observer)
+    {
+        int nb_cards = controller()->game->battlefield->nb_cards;
+        for(int x = 0; x < nb_cards; x++)
+        {
+            if(controller()->game->battlefield->cards[x]->name == this->name)
+                count+=1;
+        }
+    }
+    return count;
 }
 
 //check stack

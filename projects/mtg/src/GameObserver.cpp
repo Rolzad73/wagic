@@ -110,7 +110,6 @@ GameObserver::GameObserver(WResourceManager *output, JGE* input)
     mLayers = NULL;
     mTrash = new Trash();
     mDeckManager = new DeckManager();
-    foundlegendrule = false;
 }
 
 GamePhase GameObserver::getCurrentGamePhase()
@@ -711,26 +710,6 @@ void GameObserver::gameStateBasedEffects()
                 card->myPair->myPair = NULL;
                 card->myPair = NULL;
             }
-            ///set basic land mana objects canproduce
-            for (size_t gg = 0; gg < mLayers->actionLayer()->manaObjects.size(); gg++)
-            {
-                MTGAbility * aa = ((MTGAbility *) mLayers->actionLayer()->manaObjects[gg]);
-                //AManaProducer * amp = dynamic_cast<AManaProducer*> (aa);
-
-                if (dynamic_cast<AManaProducer*> (aa) && (dynamic_cast<AManaProducer*> (aa))->source->isLand() && (dynamic_cast<AManaProducer*> (aa))->source == card)
-                {
-                    if (card->hasType("forest") && ((AManaProducer*)aa)->output->hasColor(Constants::MTG_COLOR_GREEN))
-                        card->canproduceG = 1;
-                    if (card->hasType("island") && ((AManaProducer*)aa)->output->hasColor(Constants::MTG_COLOR_BLUE))
-                        card->canproduceU = 1;
-                    if (card->hasType("mountain") && ((AManaProducer*)aa)->output->hasColor(Constants::MTG_COLOR_RED))
-                        card->canproduceR = 1;
-                    if (card->hasType("swamp") && ((AManaProducer*)aa)->output->hasColor(Constants::MTG_COLOR_BLACK))
-                        card->canproduceB = 1;
-                    if (card->hasType("plains") && ((AManaProducer*)aa)->output->hasColor(Constants::MTG_COLOR_WHITE))
-                        card->canproduceW = 1;
-                }
-            }
             ///clear imprints
             if(isInPlay(card) && card->imprintedCards.size())
             {
@@ -889,7 +868,6 @@ void GameObserver::gameStateBasedEffects()
                     if(card->life < 1 && !card->has(Constants::INDESTRUCTIBLE))
                         card->destroy();//manor gargoyle... recheck
                 }
-                checkLegendary(card); //legendary rule as state based effect
             }
 
             if(card->childrenCards.size())
@@ -1063,51 +1041,9 @@ void GameObserver::gameStateBasedEffects()
             || mCurrentGamePhase == MTG_PHASE_COMBATDAMAGE))
             userRequestNextGamePhase();
     }
-}
 
-void GameObserver::checkLegendary(MTGCardInstance *  card)
-{
-    if(!foundlegendrule)
-        return;
-    if(card->has(Constants::NOLEGEND)||card->controller()->opponent()->inPlay()->hasAbility(Constants::NOLEGENDRULE)||card->controller()->inPlay()->hasAbility(Constants::NOLEGENDRULE))
-        return;
-    int destroy = 0;
-    vector<MTGCardInstance*>oldCards;
-
-     MTGGameZone * z = card->controller()->game->inPlay;
-     int nbcards = z->nb_cards-1;
-
-    for (int r = 0;  r < nbcards; r++)
-    {
-        MTGCardInstance * comparison = z->cards[r];
-        if (comparison != card && comparison->hasType("legendary") && !(comparison->getName().compare(card->getName())))
-        {
-            oldCards.push_back(comparison);
-            destroy = 1;
-        }
-    }
-
-    if(destroy)
-    {
-        vector<MTGAbility*>selection;
-        MultiAbility * multi = NEW MultiAbility(this, this->mLayers->actionLayer()->getMaxId(), card, card, NULL);
-        for(unsigned int i = 0;i < oldCards.size();i++)
-        {
-            AAMover *a = NEW AAMover(this, this->mLayers->actionLayer()->getMaxId(), card, oldCards[i],"ownergraveyard","Keep New");
-            a->oneShot = true;
-            multi->Add(a);
-        }
-        multi->oneShot = 1;
-        MTGAbility * a1 = multi;
-        selection.push_back(a1);
-        AAMover *b = NEW AAMover(this, this->mLayers->actionLayer()->getMaxId(), card, card,"ownergraveyard","Keep Old");
-        b->oneShot = true;
-        MTGAbility * b1 = b;
-        selection.push_back(b1);
-        MTGAbility * menuChoice = NEW MenuAbility(this, this->mLayers->actionLayer()->getMaxId(), card, card,true,selection,card->controller(),"Legendary Rule");
-        menuChoice->addToGame();
-    }
-    return;
+    //WEventGameStateBasedChecked event checked
+    receiveEvent(NEW WEventGameStateBasedChecked());
 }
 
 void GameObserver::enchantmentStatus()

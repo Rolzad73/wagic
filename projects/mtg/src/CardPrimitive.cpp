@@ -45,7 +45,7 @@ CardPrimitive::CardPrimitive(CardPrimitive * source)
 
     for (size_t i = 0; i < source->types.size(); ++i)
         types.push_back(source->types[i]);
-        colors = source->colors;
+    colors = source->colors;
     manaCost.copy(source->getManaCost());
     //reducedCost.copy(source->getReducedManaCost());
     //increasedCost.copy(source->getIncreasedManaCost());
@@ -58,6 +58,7 @@ CardPrimitive::CardPrimitive(CardPrimitive * source)
 
     setdoubleFaced(source->doubleFaced);
     setAICustomCode(source->AICustomCode);
+    setCrewAbility(source->CrewAbility);
     power = source->power;
     toughness = source->toughness;
     restrictions = source->restrictions ? source->restrictions->clone() : NULL;
@@ -351,6 +352,17 @@ void CardPrimitive::setAICustomCode(const string& value)
 const string& CardPrimitive::getAICustomCode() const
 {
     return AICustomCode;
+}
+
+void CardPrimitive::setCrewAbility(const string& value)
+{
+    std::transform(CrewAbility.begin(), CrewAbility.end(), CrewAbility.begin(), ::tolower);
+    CrewAbility = value;
+}
+
+const string& CardPrimitive::getCrewAbility() const
+{
+    return CrewAbility;
 }
 
 void CardPrimitive::setName(const string& value)
