@@ -55,7 +55,7 @@ def main():
         parser.print_help()
         return
 
-    repository = gh.repository('WagicProject', 'wagic')
+    repository = gh.repository('Rolzad73', 'wagic')
     r = checkRelease(repository, options.remote)
     filename = options.remote
     with open(options.local, 'rb') as fd:

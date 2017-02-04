@@ -75,12 +75,12 @@ if [ "$BUILD_Qt" = "YES" ]; then
     zip linuxqtrelease.zip ./wagic
     cd ..
     # let's try an Intel linux binary in debug text-mode-only
-    $QMAKE projects/mtg/wagic-qt.pro CONFIG+=console CONFIG+=debug DEFINES+=CAPTURE_STDERR
-    make -j 4
-    # Now we run the testsuite (Res needs to be in the working directory)
-    cd projects/mtg
-    ../../wagic
-    cd ../..
+#    $QMAKE projects/mtg/wagic-qt.pro CONFIG+=console CONFIG+=debug DEFINES+=CAPTURE_STDERR
+#    make -j 4
+#    # Now we run the testsuite (Res needs to be in the working directory)
+#    cd projects/mtg
+#    ../../wagic
+#    cd ../..
 fi
 
 # Let's launch de Mac cross-compilation
