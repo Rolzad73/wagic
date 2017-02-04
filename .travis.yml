@@ -1,8 +1,6 @@
 language: cpp
 branches:
     - master
-  except:
-    - latest-master
 
 before_install:
   - export BUILD_PSP=YES
